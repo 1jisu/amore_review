@@ -1612,12 +1612,15 @@ function renderLinkHistoryList() {
     const selected = selectedHistoryIds.has(h.id);
     return `<div onclick="toggleLinkHistory(${h.id},this)" data-id="${h.id}"
       style="padding:10px 14px;border-radius:8px;border:2px solid ${selected?'var(--accent)':'var(--rule)'};background:${selected?'var(--accent-light)':'var(--surface)'};cursor:pointer;transition:all .15s;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-        <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:500">${h.date||''}</span>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:600">${h.date||''}</span>
         ${h.media1 ? `<span style="font-size:11px;padding:1px 7px;border-radius:20px;background:${MEDIA_COLORS[h.media1]||'#888'}22;color:${MEDIA_COLORS[h.media1]||'#888'}">${h.media1}</span>` : ''}
+        ${h.media2 && h.media2!=='-' ? `<span style="font-size:11px;padding:1px 7px;border-radius:20px;background:${MEDIA_COLORS[h.media2]||'#888'}22;color:${MEDIA_COLORS[h.media2]||'#888'}">${h.media2}</span>` : ''}
+        ${h.change_type ? `<span style="font-size:11px;padding:1px 7px;border-radius:20px;background:var(--surface2);color:var(--ink2)">${h.change_type}</span>` : ''}
         ${selected ? '<span style="margin-left:auto;font-size:11px;color:var(--accent);font-weight:600">✓ 선택됨</span>' : ''}
       </div>
-      <div style="font-size:12px;color:var(--ink);line-height:1.4">${(h.detail||'').slice(0,80)}${(h.detail||'').length>80?'…':''}</div>
+      ${h.campaign ? `<div style="font-size:11px;color:var(--ink2);margin-bottom:3px">${h.campaign}</div>` : ''}
+      <div style="font-size:12px;color:var(--ink);line-height:1.5">${(h.detail||'').slice(0,120)}${(h.detail||'').length>120?'…':''}</div>
     </div>`;
   }).join('');
 }
