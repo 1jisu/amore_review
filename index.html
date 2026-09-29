@@ -713,7 +713,7 @@ mark { background: #fff0b0; border-radius: 2px; padding: 0 1px; }
 
   <!-- 테이블 -->
   <div style="background:var(--surface);border:1px solid var(--rule);border-radius:var(--r-lg);overflow:hidden;">
-    <div style="display:grid;grid-template-columns:80px 70px 70px 70px 160px 160px 100px 1fr;padding:10px 24px;background:var(--surface2);border-bottom:1px solid var(--rule);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);">
+    <div style="display:grid;grid-template-columns:80px 70px 70px 70px 160px 160px 100px 1fr 60px;padding:10px 24px;background:var(--surface2);border-bottom:1px solid var(--rule);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);">
       <div>일시</div>
       <div>매체1</div>
       <div>매체2</div>
@@ -722,6 +722,7 @@ mark { background: #fff0b0; border-radius: 2px; padding: 0 1px; }
       <div>기획전명</div>
       <div>변경상세</div>
       <div>상세내용</div>
+      <div style="text-align:center">리뷰</div>
     </div>
     <div id="history-rows"></div>
   </div>
@@ -801,6 +802,21 @@ mark { background: #fff0b0; border-radius: 2px; padding: 0 1px; }
   </div>
 </section>
 
+<!-- 히스토리 연결 모달 -->
+<div id="link-history-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px;width:560px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.15);">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">🔗 히스토리 연결</div>
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">리뷰 체크된 히스토리에서 선택하세요 (복수 선택 가능)</div>
+    <input type="text" id="lh-search" placeholder="날짜, 내용 검색..." oninput="renderLinkHistoryList()"
+      style="width:100%;font-family:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--rule);border-radius:8px;outline:none;margin-bottom:10px">
+    <div id="link-history-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:16px;max-height:320px;"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeLinkHistoryModal()" style="flex:1;font-family:inherit;font-size:13px;padding:9px;border-radius:8px;border:1px solid var(--rule);background:#fff;cursor:pointer">취소</button>
+      <button onclick="saveLinkHistory()" style="flex:1;font-family:inherit;font-size:13px;font-weight:700;padding:9px;border-radius:8px;border:none;background:var(--ink);color:#fff;cursor:pointer">저장</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ════ SUPABASE CONFIG ════
 const SUPABASE_URL = 'https://wjftaxzhtpbnpnviujic.supabase.co';
@@ -839,6 +855,7 @@ async function loadItems() {
       status: r.status,
       ref: r.ref || '',
       channel: r.channel || '',
+      linked_history_ids: r.linked_history_ids || '',
     }));
   } catch(e) {
     console.error('데이터 로드 실패:', e);
@@ -1316,13 +1333,20 @@ function renderReflect() {
     const sClass = { checking:'checking', progress:'progress', done:'done', pending:'pending', none:'none' }[item.status] || 'none';
     const gm = groupMeta[item.group];
     const groupBadge = gm ? `<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;background:${gm.bg};color:${gm.color};white-space:nowrap">${gm.label}</span>` : '';
-    return `<div class="rt-row" style="grid-template-columns:80px 1fr 1fr 130px;align-items:start;padding:14px 16px;">
+    const linkedIds = item.linked_history_ids ? item.linked_history_ids.split(',').map(x=>parseInt(x)).filter(Boolean) : [];
+    const linkedHistories = HISTORY.filter(h => linkedIds.includes(h.id));
+    const linkedBadge = linkedHistories.length > 0
+      ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+          ${linkedHistories.map(h=>`<span style="font-size:11px;padding:2px 8px;border-radius:6px;background:#eef2fd;color:#2d5be3;display:inline-block">${h.date} · ${h.detail?.slice(0,20)||''}${(h.detail?.length||0)>20?'…':''}</span>`).join('')}
+        </div>` : '';
+    return `<div class="rt-row" style="grid-template-columns:80px 1fr 1fr 160px;align-items:start;padding:14px 16px;">
       <div class="rt-cell ym" style="padding-top:4px">${yr}.${mo}</div>
       <div class="rt-cell title">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">${groupBadge}<span>${item.title}</span></div>
+        ${linkedBadge}
       </div>
       <div class="rt-cell note" style="font-size:12px;color:var(--ink2);line-height:1.55;white-space:pre-wrap;padding-right:12px">${item.note || '—'}</div>
-      <div class="rt-cell">
+      <div class="rt-cell" style="display:flex;flex-direction:column;gap:6px">
         <select class="status-sel s-${sClass}" onchange="changeStatus(${item.id},this.value)">
           <option value="none"     ${item.status==='none'    ?'selected':''}>-</option>
           <option value="checking" ${item.status==='checking'?'selected':''}>확인 중</option>
@@ -1330,6 +1354,16 @@ function renderReflect() {
           <option value="done"     ${item.status==='done'    ?'selected':''}>완료</option>
           <option value="pending"  ${item.status==='pending' ?'selected':''}>미진행</option>
         </select>
+        <button onclick="openLinkHistoryModal(${item.id})"
+          style="font-family:inherit;font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid ${linkedHistories.length>0?'var(--accent)':'var(--rule)'};background:${linkedHistories.length>0?'var(--accent-light)':'var(--surface)'};color:${linkedHistories.length>0?'var(--accent)':'var(--ink2)'};cursor:pointer;text-align:left;font-weight:${linkedHistories.length>0?'600':'400'}">
+          ${linkedHistories.length > 0
+            ? linkedHistories.map(h => {
+                const d = String(h.date||'').trim().replace(/[^0-9\/]/g,'').replace('/','').replace('/','');
+                const short = d.replace(/\//g,'').slice(0,4);
+                return `✓ ${short} 적용`;
+              }).join(' · ')
+            : '🔗 히스토리 연결'}
+        </button>
       </div>
     </div>`;
   }).join('');
@@ -1539,6 +1573,84 @@ function closeLinkModal() {
   document.getElementById('link-modal').style.display = 'none';
 }
 
+// ════ LINK HISTORY MODAL ════
+let linkingReviewId = null;
+let selectedHistoryIds = new Set();
+
+function openLinkHistoryModal(reviewId) {
+  linkingReviewId = reviewId;
+  const item = ITEMS.find(x => x.id === reviewId);
+  selectedHistoryIds = new Set(
+    (item?.linked_history_ids || '').split(',').map(x=>parseInt(x)).filter(Boolean)
+  );
+  document.getElementById('lh-search').value = '';
+  document.getElementById('link-history-modal').style.display = 'flex';
+  renderLinkHistoryList();
+}
+
+function closeLinkHistoryModal() {
+  document.getElementById('link-history-modal').style.display = 'none';
+  linkingReviewId = null;
+}
+
+function renderLinkHistoryList() {
+  const q = document.getElementById('lh-search').value.toLowerCase();
+  const reviewItems = HISTORY.filter(h => h.is_review);
+  const filtered = q ? reviewItems.filter(h =>
+    (h.date||'').toLowerCase().includes(q) ||
+    (h.detail||'').toLowerCase().includes(q) ||
+    (h.campaign||'').toLowerCase().includes(q) ||
+    (h.media1||'').toLowerCase().includes(q)
+  ) : reviewItems;
+
+  const el = document.getElementById('link-history-list');
+  if (!filtered.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--ink3);font-size:13px">리뷰 체크된 히스토리가 없어요<br>히스토리 탭에서 먼저 체크해주세요</div>';
+    return;
+  }
+  el.innerHTML = filtered.map(h => {
+    const selected = selectedHistoryIds.has(h.id);
+    return `<div onclick="toggleLinkHistory(${h.id},this)" data-id="${h.id}"
+      style="padding:10px 14px;border-radius:8px;border:2px solid ${selected?'var(--accent)':'var(--rule)'};background:${selected?'var(--accent-light)':'var(--surface)'};cursor:pointer;transition:all .15s;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+        <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:500">${h.date||''}</span>
+        ${h.media1 ? `<span style="font-size:11px;padding:1px 7px;border-radius:20px;background:${MEDIA_COLORS[h.media1]||'#888'}22;color:${MEDIA_COLORS[h.media1]||'#888'}">${h.media1}</span>` : ''}
+        ${selected ? '<span style="margin-left:auto;font-size:11px;color:var(--accent);font-weight:600">✓ 선택됨</span>' : ''}
+      </div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.4">${(h.detail||'').slice(0,80)}${(h.detail||'').length>80?'…':''}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleLinkHistory(id, el) {
+  if (selectedHistoryIds.has(id)) {
+    selectedHistoryIds.delete(id);
+    el.style.border = '2px solid var(--rule)';
+    el.style.background = 'var(--surface)';
+    el.querySelector('span:last-child')?.remove();
+  } else {
+    selectedHistoryIds.add(id);
+    el.style.border = '2px solid var(--accent)';
+    el.style.background = 'var(--accent-light)';
+  }
+  renderLinkHistoryList();
+}
+
+async function saveLinkHistory() {
+  if (!linkingReviewId) return;
+  const ids = Array.from(selectedHistoryIds).join(',');
+  await sbFetch(`review_items?id=eq.${linkingReviewId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ linked_history_ids: ids }),
+    prefer: 'return=minimal'
+  });
+  const item = ITEMS.find(x => x.id === linkingReviewId);
+  if (item) item.linked_history_ids = ids;
+  closeLinkHistoryModal();
+  renderReflect();
+  showToast('히스토리 연결 완료 ✓');
+}
+
 // ════ HISTORY TAB ════
 let HISTORY = [];
 let editingHistoryId = null;
@@ -1636,7 +1748,8 @@ function renderHistory() {
 
   rows.innerHTML = data.map(item => {
     const mediaBadge = (m) => m && m !== '-' ? `<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${MEDIA_COLORS[m]||'#888'}22;color:${MEDIA_COLORS[m]||'#888'};font-weight:500">${m}</span>` : '<span style="color:var(--ink3);font-size:12px">-</span>';
-    return `<div style="display:grid;grid-template-columns:80px 70px 70px 70px 160px 160px 100px 1fr;padding:12px 24px;border-top:1px solid var(--rule);align-items:start;transition:background .1s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+    const isReview = item.is_review;
+    return `<div style="display:grid;grid-template-columns:80px 70px 70px 70px 160px 160px 100px 1fr 60px;padding:12px 24px;border-top:1px solid var(--rule);align-items:start;transition:background .1s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div style="font-size:12px;color:var(--ink2);font-family:'DM Mono',monospace">${hl(item.date)}</div>
       <div>${mediaBadge(item.media1)}</div>
       <div>${mediaBadge(item.media2)}</div>
@@ -1645,8 +1758,28 @@ function renderHistory() {
       <div style="font-size:12px;color:var(--ink2);word-break:break-all;line-height:1.4;padding-right:16px">${hl(item.change_type)}</div>
       <div style="font-size:12px;color:var(--ink);line-height:1.5">${hl(item.detail)}</div>
       <div style="font-size:12px;color:var(--ink2);line-height:1.5">${hl(item.note)}</div>
+      <div style="display:flex;align-items:center;justify-content:center;">
+        <label title="리뷰 반영 항목" style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;">
+          <input type="checkbox" ${isReview?'checked':''} onchange="toggleReviewFlag(${item.id},this.checked)"
+            style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer">
+          <span style="font-size:9px;color:${isReview?'var(--accent)':'var(--ink3)'};font-weight:500">리뷰</span>
+        </label>
+      </div>
     </div>`;
   }).join('');
+}
+
+async function toggleReviewFlag(id, checked) {
+  const item = HISTORY.find(x => x.id === id);
+  if (item) {
+    item.is_review = checked;
+    await sbFetch(`work_history?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_review: checked }),
+      prefer: 'return=minimal'
+    });
+    showToast(checked ? '리뷰 반영 항목으로 표시됨 ✓' : '표시 해제됨');
+  }
 }
 
 function clearHistoryFilter_old() {}
