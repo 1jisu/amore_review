@@ -1620,7 +1620,7 @@ function renderLinkHistoryList() {
         ${selected ? '<span style="margin-left:auto;font-size:11px;color:var(--accent);font-weight:600">✓ 선택됨</span>' : ''}
       </div>
       ${h.campaign ? `<div style="font-size:11px;color:var(--ink2);margin-bottom:3px">${h.campaign}</div>` : ''}
-      <div style="font-size:12px;color:var(--ink);line-height:1.5">${(h.detail||'').slice(0,120)}${(h.detail||'').length>120?'…':''}</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.5">${(h.note||'').slice(0,120)}${(h.note||'').length>120?'…':''}</div>
     </div>`;
   }).join('');
 }
